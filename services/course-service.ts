@@ -248,3 +248,77 @@ export async function updateCourse(
   }
 }
 
+/**
+ * Update video processing status for a specific topic
+ * @param courseId - Course ID
+ * @param topicId - Topic ID
+ * @param status - Processing status
+ * @param videoUrl - Video URL (HLS master playlist)
+ * @param jobId - Processing job ID (optional)
+ */
+export async function updateTopicVideoStatus(
+  courseId: string,
+  topicId: string,
+  status: 'PROCESSING' | 'COMPLETE' | 'FAILED',
+  videoUrl?: string,
+  jobId?: string
+): Promise<void> {
+  console.log(`📝 [COURSE SERVICE] updateTopicVideoStatus called`);
+  console.log(`📝 [COURSE SERVICE] CourseId: ${courseId}`);
+  console.log(`📝 [COURSE SERVICE] TopicId: ${topicId}`);
+  console.log(`📝 [COURSE SERVICE] Status: ${status}`);
+  console.log(`📝 [COURSE SERVICE] VideoUrl: ${videoUrl}`);
+  console.log(`📝 [COURSE SERVICE] JobId: ${jobId}`);
+  
+  try {
+    const courseRef = doc(db, COURSES_COLLECTION, courseId);
+    const courseSnap = await getDoc(courseRef);
+    
+    if (!courseSnap.exists()) {
+      console.error(`❌ [COURSE SERVICE] Course ${courseId} not found`);
+      throw new Error(`Course ${courseId} not found`);
+    }
+
+    const courseData = courseSnap.data() as Course;
+    console.log(`📝 [COURSE SERVICE] Found course: ${courseData.title}`);
+    console.log(`📝 [COURSE SERVICE] Current topics count: ${courseData.topics.length}`);
+    
+    const topicIndex = courseData.topics.findIndex(t => t.id === topicId);
+    console.log(`📝 [COURSE SERVICE] Topic index: ${topicIndex}`);
+    
+    if (topicIndex === -1) {
+      console.error(`❌ [COURSE SERVICE] Topic ${topicId} not found in course ${courseId}`);
+      throw new Error(`Topic ${topicId} not found in course ${courseId}`);
+    }
+
+    const currentTopic = courseData.topics[topicIndex];
+    console.log(`📝 [COURSE SERVICE] Current topic:`, JSON.stringify(currentTopic, null, 2));
+
+    // Update the topic with new video metadata
+    const updatedTopics = [...courseData.topics];
+    const now = new Date().toISOString();
+    
+    updatedTopics[topicIndex] = {
+      ...updatedTopics[topicIndex],
+      videoUrl: videoUrl || updatedTopics[topicIndex].videoUrl,
+      videoProcessingStatus: status,
+      videoJobId: jobId || updatedTopics[topicIndex].videoJobId,
+      videoUploadedAt: updatedTopics[topicIndex].videoUploadedAt || now,
+      videoProcessedAt: status === 'COMPLETE' || status === 'FAILED' ? now : updatedTopics[topicIndex].videoProcessedAt,
+    };
+
+    console.log(`📝 [COURSE SERVICE] Updated topic:`, JSON.stringify(updatedTopics[topicIndex], null, 2));
+    console.log(`📝 [COURSE SERVICE] Updating Firebase document...`);
+
+    await updateDoc(courseRef, {
+      topics: updatedTopics,
+      updatedAt: now,
+    });
+    
+    console.log(`✅ [COURSE SERVICE] Firebase document updated successfully`);
+  } catch (error) {
+    console.error('❌ [COURSE SERVICE] Error updating topic video status:', error);
+    throw error;
+  }
+}
+

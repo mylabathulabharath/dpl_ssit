@@ -8,6 +8,8 @@ import { useAuth } from '@/contexts/auth-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { getBranchesByUniversity, getUniversities } from '@/services/admin-service';
 import { getCourseById, updateCourse } from '@/services/course-service';
+import { VideoUploadResult } from '@/services/video-upload-service';
+import { updateVideoStatusAndPoll } from '@/services/video-status-service';
 import { Branch, University } from '@/types/admin';
 import { Course, CourseFormData } from '@/types/course';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -77,7 +79,15 @@ export default function EditCourseScreen() {
   };
   
   // Step 2: Course Structure
-  const [topics, setTopics] = useState<Array<{ id?: string; title: string; description: string; videoDuration: string; videoUrl: string }>>([
+  const [topics, setTopics] = useState<Array<{ 
+    id?: string; 
+    title: string; 
+    description: string; 
+    videoDuration: string; 
+    videoUrl: string;
+    videoJobId?: string;
+    videoProcessingStatus?: 'PROCESSING' | 'COMPLETE' | 'FAILED';
+  }>>([
     { title: '', description: '', videoDuration: '', videoUrl: '' },
   ]);
   
@@ -173,9 +183,27 @@ export default function EditCourseScreen() {
                   description: topic.description || '',
                   videoDuration: topic.videoDuration.toString(),
                   videoUrl: topic.videoUrl || '',
+                  videoJobId: topic.videoJobId,
+                  videoProcessingStatus: topic.videoProcessingStatus,
                 }))
               : [{ title: '', description: '', videoDuration: '', videoUrl: '' }]
           );
+          
+          // Poll status for any PROCESSING videos
+          if (id) {
+            courseData.topics.forEach((topic) => {
+              if (topic.videoJobId && topic.videoProcessingStatus === 'PROCESSING' && topic.videoUrl) {
+                updateVideoStatusAndPoll(
+                  id,
+                  topic.id,
+                  topic.videoJobId,
+                  topic.videoUrl
+                ).catch(error => {
+                  console.error(`Error polling video status for topic ${topic.id}:`, error);
+                });
+              }
+            });
+          }
         }
       }
     } catch (error) {
@@ -209,6 +237,17 @@ export default function EditCourseScreen() {
   const updateTopic = (index: number, field: 'title' | 'description' | 'videoDuration' | 'videoUrl', value: string) => {
     const updated = [...topics];
     updated[index] = { ...updated[index], [field]: value };
+    setTopics(updated);
+  };
+
+  const handleVideoUploadComplete = (index: number, result: VideoUploadResult) => {
+    const updated = [...topics];
+    updated[index] = { 
+      ...updated[index], 
+      videoUrl: result.videoUrl,
+      videoJobId: result.jobId,
+      videoProcessingStatus: result.status,
+    };
     setTopics(updated);
   };
   
@@ -272,10 +311,28 @@ export default function EditCourseScreen() {
           videoDuration: Number(topic.videoDuration),
           orderIndex: index,
           videoUrl: topic.videoUrl.trim() || getDemoVideoUrl(index),
+          videoJobId: topic.videoJobId,
+          videoProcessingStatus: topic.videoProcessingStatus,
+          videoUploadedAt: topic.videoJobId && !topic.videoUploadedAt ? new Date().toISOString() : undefined,
         })),
       };
       
       await updateCourse(id, courseData);
+      
+      // Start polling for any PROCESSING videos in the background
+      validTopics.forEach((topic) => {
+        if (topic.id && topic.videoJobId && topic.videoProcessingStatus === 'PROCESSING' && topic.videoUrl) {
+          updateVideoStatusAndPoll(
+            id,
+            topic.id,
+            topic.videoJobId,
+            topic.videoUrl
+          ).catch(error => {
+            console.error(`Error polling video status for topic ${topic.id}:`, error);
+          });
+        }
+      });
+      
       router.replace('/(tutor)/dashboard');
     } catch (error) {
       console.error('Error updating course:', error);
@@ -1023,8 +1080,10 @@ export default function EditCourseScreen() {
                     <VideoUpload
                       value={topic.videoUrl}
                       onChange={(url) => updateTopic(index, 'videoUrl', url)}
+                      onUploadComplete={(result) => handleVideoUploadComplete(index, result)}
                       disabled={loading}
                       title={topic.title}
+                      processingStatus={topic.videoProcessingStatus}
                     />
                     {!topic.videoUrl && (
                       <ThemedText

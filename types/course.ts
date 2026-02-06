@@ -4,7 +4,12 @@ export interface Topic {
   description?: string;
   videoDuration: number; // in minutes
   orderIndex: number;
-  videoUrl?: string; // placeholder for now
+  videoUrl?: string; // HLS master playlist URL
+  // Video processing metadata
+  videoJobId?: string; // Processing job ID from server
+  videoProcessingStatus?: 'PROCESSING' | 'COMPLETE' | 'FAILED';
+  videoUploadedAt?: string; // ISO timestamp
+  videoProcessedAt?: string; // ISO timestamp when processing completed
 }
 
 export interface Course {

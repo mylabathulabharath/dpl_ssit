@@ -23,6 +23,7 @@ import {
   UploadProgress,
   uploadVideo,
   VideoUploadSource,
+  VideoUploadResult,
 } from '@/services/video-upload-service';
 
 
@@ -41,8 +42,10 @@ if (Platform.OS !== 'web') {
 export interface VideoUploadProps {
   value?: string;
   onChange: (url: string) => void;
+  onUploadComplete?: (result: VideoUploadResult) => void; // Optional callback for full upload result
   disabled?: boolean;
   title?: string;
+  processingStatus?: 'PROCESSING' | 'COMPLETE' | 'FAILED'; // Current processing status
 }
 
 
@@ -50,14 +53,17 @@ export interface VideoUploadProps {
 export function VideoUpload({
   value,
   onChange,
+  onUploadComplete,
   disabled = false,
   title,
+  processingStatus,
 }: VideoUploadProps) {
 
   const colors = Colors[useColorScheme() ?? 'dark'] || Colors.dark;
 
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [currentStatus, setCurrentStatus] = useState<'PROCESSING' | 'COMPLETE' | 'FAILED' | undefined>(processingStatus);
 
 
   async function pickVideo(): Promise<VideoUploadSource | null> {
@@ -145,10 +151,11 @@ export function VideoUpload({
           : file.name || "video.mp4";
 
 
-      console.log("Uploading:", fileName);
+      console.log("📹 [VIDEO UPLOAD COMPONENT] Starting upload:", fileName);
+      console.log("📹 [VIDEO UPLOAD COMPONENT] Title:", title);
 
 
-      const url = await uploadVideo(
+      const result = await uploadVideo(
 
         file,
 
@@ -157,8 +164,9 @@ export function VideoUpload({
         (p: UploadProgress) => {
 
           if (p.total > 0) {
-
-            setProgress((p.loaded / p.total) * 100);
+            const progressPercent = (p.loaded / p.total) * 100;
+            setProgress(progressPercent);
+            console.log(`📹 [VIDEO UPLOAD COMPONENT] Upload progress: ${progressPercent.toFixed(2)}%`);
           }
         },
 
@@ -166,9 +174,27 @@ export function VideoUpload({
       );
 
 
-      console.log("Upload success:", url);
+      console.log("✅ [VIDEO UPLOAD COMPONENT] Upload success!");
+      console.log("✅ [VIDEO UPLOAD COMPONENT] Result:", JSON.stringify(result, null, 2));
+      console.log("✅ [VIDEO UPLOAD COMPONENT] Video URL:", result.videoUrl);
+      console.log("✅ [VIDEO UPLOAD COMPONENT] Job ID:", result.jobId);
+      console.log("✅ [VIDEO UPLOAD COMPONENT] Status:", result.status);
 
-      onChange(url);
+      // Update local status
+      setCurrentStatus(result.status);
+      console.log("📹 [VIDEO UPLOAD COMPONENT] Updated local status to:", result.status);
+
+      // Call onChange with URL (backward compatible)
+      console.log("📹 [VIDEO UPLOAD COMPONENT] Calling onChange with URL:", result.videoUrl);
+      onChange(result.videoUrl);
+
+      // Call optional callback with full result
+      if (onUploadComplete) {
+        console.log("📹 [VIDEO UPLOAD COMPONENT] Calling onUploadComplete callback");
+        onUploadComplete(result);
+      } else {
+        console.log("📹 [VIDEO UPLOAD COMPONENT] No onUploadComplete callback provided");
+      }
 
     }
     catch (error: any) {
@@ -197,8 +223,17 @@ export function VideoUpload({
 
 
 
+  // Update status when prop changes
+  React.useEffect(() => {
+    if (processingStatus) {
+      setCurrentStatus(processingStatus);
+    }
+  }, [processingStatus]);
+
   // SUCCESS VIEW
   if (value) {
+    const isProcessing = currentStatus === 'PROCESSING';
+    const isFailed = currentStatus === 'FAILED';
 
     return (
 
@@ -209,16 +244,26 @@ export function VideoUpload({
             styles.success,
             {
               backgroundColor: colors.surface,
-              borderColor: colors.border,
+              borderColor: isFailed ? colors.error : colors.border,
             },
           ]}
         >
 
-          <IconSymbol
-            name="checkmark.circle.fill"
-            size={20}
-            color={colors.completed}
-          />
+          {isProcessing ? (
+            <ActivityIndicator size="small" color={colors.primary} />
+          ) : isFailed ? (
+            <IconSymbol
+              name="exclamationmark.circle.fill"
+              size={20}
+              color={colors.error}
+            />
+          ) : (
+            <IconSymbol
+              name="checkmark.circle.fill"
+              size={20}
+              color={colors.completed}
+            />
+          )}
 
 
           <ThemedText
@@ -228,9 +273,11 @@ export function VideoUpload({
             ]}
             numberOfLines={1}
           >
-
-            Video uploaded
-
+            {isProcessing 
+              ? 'Video processing...' 
+              : isFailed 
+              ? 'Processing failed' 
+              : 'Video uploaded'}
           </ThemedText>
 
 

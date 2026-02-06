@@ -121,6 +121,12 @@ export default function AdminDashboard() {
               variant="secondary"
               fullWidth
             />
+            <AdminButton
+              label="Bulk Import Courses"
+              onPress={() => router.push('/(admin)/bulk-import')}
+              variant="secondary"
+              fullWidth
+            />
           </View>
         </View>
       </View>

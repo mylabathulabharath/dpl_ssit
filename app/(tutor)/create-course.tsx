@@ -6,7 +6,9 @@ import { Colors, Glows, Layout, Radius, Spacing, Typography } from '@/constants/
 import { useAuth } from '@/contexts/auth-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { getBranchesByUniversity, getUniversities } from '@/services/admin-service';
-import { createCourse } from '@/services/course-service';
+import { createCourse, getCourseById } from '@/services/course-service';
+import { updateVideoStatusAndPoll } from '@/services/video-status-service';
+import { VideoUploadResult } from '@/services/video-upload-service';
 import { Branch, University } from '@/types/admin';
 import { CourseFormData } from '@/types/course';
 import { useRouter } from 'expo-router';
@@ -136,7 +138,14 @@ export default function CreateCourseScreen() {
   };
   
   // Step 2: Course Structure
-  const [topics, setTopics] = useState<Array<{ title: string; description: string; videoDuration: string; videoUrl: string }>>([
+  const [topics, setTopics] = useState<Array<{ 
+    title: string; 
+    description: string; 
+    videoDuration: string; 
+    videoUrl: string;
+    videoJobId?: string;
+    videoProcessingStatus?: 'PROCESSING' | 'COMPLETE' | 'FAILED';
+  }>>([
     { title: '', description: '', videoDuration: '', videoUrl: '' },
   ]);
   
@@ -153,6 +162,26 @@ export default function CreateCourseScreen() {
   
   const addTopic = () => {
     setTopics([...topics, { title: '', description: '', videoDuration: '', videoUrl: '' }]);
+  };
+
+  const handleVideoUploadComplete = (index: number, result: VideoUploadResult) => {
+    console.log(`📚 [CREATE COURSE] Video upload complete for topic ${index}`);
+    console.log(`📚 [CREATE COURSE] Result:`, JSON.stringify(result, null, 2));
+    console.log(`📚 [CREATE COURSE] Current topics before update:`, JSON.stringify(topics, null, 2));
+    
+    const updated = [...topics];
+    updated[index] = { 
+      ...updated[index], 
+      videoUrl: result.videoUrl,
+      videoJobId: result.jobId,
+      videoProcessingStatus: result.status,
+    };
+    
+    console.log(`📚 [CREATE COURSE] Updated topic ${index}:`, JSON.stringify(updated[index], null, 2));
+    console.log(`📚 [CREATE COURSE] All topics after update:`, JSON.stringify(updated, null, 2));
+    
+    setTopics(updated);
+    console.log(`✅ [CREATE COURSE] Topics state updated`);
   };
   
   const removeTopic = (index: number) => {
@@ -226,10 +255,63 @@ export default function CreateCourseScreen() {
           videoDuration: Number(topic.videoDuration),
           orderIndex: index,
           videoUrl: topic.videoUrl.trim() || getDemoVideoUrl(index), // Use provided URL or demo video
+          videoJobId: topic.videoJobId,
+          videoProcessingStatus: topic.videoProcessingStatus,
+          videoUploadedAt: topic.videoJobId ? new Date().toISOString() : undefined,
         })),
       };
       
-      await createCourse(courseData, user.uid, userProfile.displayName);
+      console.log(`📚 [CREATE COURSE] Creating course with data:`, JSON.stringify(courseData, null, 2));
+      console.log(`📚 [CREATE COURSE] Topics to create:`, JSON.stringify(courseData.topics, null, 2));
+      
+      const courseId = await createCourse(courseData, user.uid, userProfile.displayName);
+      console.log(`✅ [CREATE COURSE] Course created with ID: ${courseId}`);
+      
+      // Fetch the created course to get actual topic IDs
+      console.log(`📚 [CREATE COURSE] Fetching created course to get topic IDs...`);
+      const createdCourse = await getCourseById(courseId);
+      console.log(`📚 [CREATE COURSE] Created course fetched:`, JSON.stringify(createdCourse?.topics.map(t => ({ id: t.id, title: t.title, videoUrl: t.videoUrl, videoJobId: t.videoJobId, videoProcessingStatus: t.videoProcessingStatus })), null, 2));
+      
+      if (createdCourse) {
+        console.log(`📚 [CREATE COURSE] Starting status polling for PROCESSING videos...`);
+        // Start polling for any PROCESSING videos in the background
+        validTopics.forEach((topic, index) => {
+          console.log(`📚 [CREATE COURSE] Checking topic ${index}:`, {
+            hasJobId: !!topic.videoJobId,
+            status: topic.videoProcessingStatus,
+            hasVideoUrl: !!topic.videoUrl,
+            jobId: topic.videoJobId,
+            videoUrl: topic.videoUrl
+          });
+          
+          if (topic.videoJobId && topic.videoProcessingStatus === 'PROCESSING' && topic.videoUrl) {
+            const topicId = createdCourse.topics[index]?.id;
+            console.log(`📚 [CREATE COURSE] Topic ${index} needs polling, topicId: ${topicId}`);
+            
+            if (topicId) {
+              console.log(`🔄 [CREATE COURSE] Starting background polling for topic ${index} (topicId: ${topicId}, jobId: ${topic.videoJobId})`);
+              updateVideoStatusAndPoll(
+                courseId,
+                topicId,
+                topic.videoJobId,
+                topic.videoUrl
+              ).then(finalUrl => {
+                console.log(`✅ [CREATE COURSE] Polling completed for topic ${index}, final URL: ${finalUrl}`);
+              }).catch(error => {
+                console.error(`❌ [CREATE COURSE] Error polling video status for topic ${index}:`, error);
+              });
+            } else {
+              console.error(`❌ [CREATE COURSE] No topicId found for topic ${index}`);
+            }
+          } else {
+            console.log(`⏭️ [CREATE COURSE] Skipping topic ${index} - not processing or missing data`);
+          }
+        });
+      } else {
+        console.error(`❌ [CREATE COURSE] Failed to fetch created course`);
+      }
+      
+      console.log(`📚 [CREATE COURSE] Navigating to dashboard...`);
       router.replace('/(tutor)/dashboard');
     } catch (error) {
       console.error('Error creating course:', error);
@@ -974,8 +1056,10 @@ export default function CreateCourseScreen() {
                     <VideoUpload
                       value={topic.videoUrl}
                       onChange={(url) => updateTopic(index, 'videoUrl', url)}
+                      onUploadComplete={(result) => handleVideoUploadComplete(index, result)}
                       disabled={loading}
                       title={topic.title}
+                      processingStatus={topic.videoProcessingStatus}
                     />
                     {!topic.videoUrl && (
                       <ThemedText
@@ -1097,8 +1181,8 @@ const styles = StyleSheet.create({
     borderRadius: Radius.md,
     borderWidth: 1,
     paddingHorizontal: Spacing.md,
-    fontSize: 16,
     ...Typography.body,
+    fontSize: 16,
   },
   textArea: {
     minHeight: 120,
@@ -1106,8 +1190,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.md,
-    fontSize: 16,
     ...Typography.body,
+    fontSize: 16,
   },
   outcomeItem: {
     flexDirection: 'row',
