@@ -5,21 +5,21 @@ import * as ScreenOrientation from 'expo-screen-orientation';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  Dimensions,
-  Platform,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    Dimensions,
+    Platform,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import Animated, {
-  Easing,
-  useAnimatedStyle,
-  useSharedValue,
-  withDelay,
-  withSequence,
-  withSpring,
-  withTiming,
+    Easing,
+    useAnimatedStyle,
+    useSharedValue,
+    withDelay,
+    withSequence,
+    withSpring,
+    withTiming,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -73,6 +73,7 @@ export function VideoPlayer({
     visible: false,
   });
   const [hasCompleted, setHasCompleted] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   
   const lastTapTimeRef = useRef<{ left: number; right: number }>({ left: 0, right: 0 });
   const singleTapTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -119,6 +120,7 @@ export function VideoPlayer({
   const handlePlaybackStatusUpdate = (status: AVPlaybackStatus) => {
     setStatus(status);
     if (status.isLoaded) {
+      setLoadError(null); // Clear any previous errors
       setIsPlaying(status.isPlaying);
       if (status.durationMillis && status.positionMillis !== undefined) {
         const progress = status.positionMillis / status.durationMillis;
@@ -138,6 +140,25 @@ export function VideoPlayer({
           }
         }
       }
+    } else if (status.error) {
+      // Handle video load errors
+      const errorMessage = status.error || 'Failed to load video';
+      console.error('❌ Video load error:', errorMessage);
+      console.error('❌ Video URL:', source.uri);
+      console.error('❌ Full status:', JSON.stringify(status, null, 2));
+      
+      // Provide more helpful error message
+      let userFriendlyError = `Failed to load video.\n\nURL: ${source.uri}\n\n`;
+      
+      if (source.uri.includes('r2.dev')) {
+        userFriendlyError += 'Possible issues:\n';
+        userFriendlyError += '1. Video may still be processing\n';
+        userFriendlyError += '2. CORS may not be enabled on Cloudflare R2\n';
+        userFriendlyError += '3. The video path may be incorrect\n';
+        userFriendlyError += '4. Check browser console for detailed error';
+      }
+      
+      setLoadError(userFriendlyError);
     }
   };
   
@@ -504,6 +525,14 @@ export function VideoPlayer({
         useNativeControls={false}
         progressUpdateIntervalMillis={250}
       />
+
+      {/* Error Message Overlay */}
+      {loadError && (
+        <View style={styles.errorOverlay}>
+          <Text style={styles.errorText}>{loadError}</Text>
+          <Text style={styles.errorUrlText}>URL: {source.uri}</Text>
+        </View>
+      )}
 
       {/* Left Tap Zone */}
       <TouchableOpacity
@@ -906,5 +935,30 @@ const styles = StyleSheet.create({
   },
   speedTextLandscape: {
     fontSize: 15,
+  },
+  errorOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+    zIndex: 100,
+  },
+  errorText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  errorUrlText: {
+    color: '#AAAAAA',
+    fontSize: 12,
+    textAlign: 'center',
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
   },
 });

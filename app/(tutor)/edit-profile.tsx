@@ -1,22 +1,22 @@
-import React, { useState, useEffect } from 'react';
-import {
-  View,
-  StyleSheet,
-  TextInput,
-  ScrollView,
-  TouchableOpacity,
-  KeyboardAvoidingView,
-  Platform,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
-import { Colors, Typography, Spacing, Radius } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { ThemedText } from '@/components/themed-text';
 import { Button } from '@/components/ui/button';
 import { IconSymbol } from '@/components/ui/icon-symbol';
+import { Colors, Layout, Radius, Spacing, Typography } from '@/constants/theme';
 import { useAuth } from '@/contexts/auth-context';
+import { useColorScheme } from '@/hooks/use-color-scheme';
 import { getTrainerProfile, upsertTrainerProfile } from '@/services/trainer-service';
+import { useRouter } from 'expo-router';
+import React, { useEffect, useState } from 'react';
+import {
+    KeyboardAvoidingView,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    TextInput,
+    TouchableOpacity,
+    View,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function EditProfileScreen() {
   const router = useRouter();
@@ -82,7 +82,7 @@ export default function EditProfileScreen() {
         style={styles.keyboardView}
       >
         {/* Header */}
-        <View style={styles.header}>
+        <View style={[styles.header, Platform.OS === 'web' && styles.headerWeb]}>
           <TouchableOpacity
             onPress={() => router.back()}
             style={styles.backButton}
@@ -105,10 +105,14 @@ export default function EditProfileScreen() {
         
         <ScrollView
           style={styles.scrollView}
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[
+            styles.scrollContent,
+            Platform.OS === 'web' && styles.scrollContentWeb,
+          ]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
+          <View style={Platform.OS === 'web' ? styles.contentWrapWeb : undefined}>
           {/* Display Name */}
           <View style={styles.inputGroup}>
             <ThemedText
@@ -222,6 +226,7 @@ export default function EditProfileScreen() {
           />
           
           <View style={{ height: Spacing.xxl }} />
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -243,6 +248,10 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.md,
     paddingBottom: Spacing.sm,
   },
+  headerWeb: {
+    paddingHorizontal: Spacing.xl,
+    paddingTop: Spacing.lg,
+  },
   backButton: {
     width: 40,
     height: 40,
@@ -254,6 +263,14 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: Spacing.lg,
+  },
+  scrollContentWeb: {
+    padding: Spacing.xl,
+  },
+  contentWrapWeb: {
+    maxWidth: Layout.contentMaxWidth,
+    width: '100%',
+    alignSelf: 'center',
   },
   inputGroup: {
     marginBottom: Spacing.lg,

@@ -1,18 +1,18 @@
-import React, { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, View, TouchableOpacity } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
-import { Colors, Typography, Spacing, Radius, Glows, Shadows } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
-import { ThemedText } from '@/components/themed-text';
 import { Logo } from '@/components/logo';
-import { useAuth } from '@/contexts/auth-context';
-import { UserMenu } from '@/components/user-menu';
-import { IconSymbol } from '@/components/ui/icon-symbol';
+import { ThemedText } from '@/components/themed-text';
 import { Button } from '@/components/ui/button';
+import { IconSymbol } from '@/components/ui/icon-symbol';
+import { UserMenu } from '@/components/user-menu';
+import { Colors, Glows, Layout, Radius, Shadows, Spacing, Typography } from '@/constants/theme';
+import { useAuth } from '@/contexts/auth-context';
+import { useColorScheme } from '@/hooks/use-color-scheme';
 import { getCoursesByTrainer } from '@/services/course-service';
 import { Course } from '@/types/course';
+import { useRouter } from 'expo-router';
+import React, { useEffect, useState } from 'react';
+import { Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function TutorDashboard() {
   const router = useRouter();
@@ -41,39 +41,49 @@ export default function TutorDashboard() {
     }
   };
   
+  const isWeb = Platform.OS === 'web';
+
   return (
     <SafeAreaView
       style={[styles.container, { backgroundColor: colors.background }]}
       edges={['top']}
     >
-      {/* Header with User Menu */}
-      <View style={styles.topBar}>
-        <View style={styles.headerContent}>
-          <View style={styles.headerLeft}>
-            <Logo variant="small" style={styles.logo} />
-            <ThemedText
-              style={[
-                Typography.display,
-                {
-                  color: colors.text,
-                  fontSize: 28,
-                  lineHeight: 36,
-                  marginLeft: Spacing.sm,
-                },
-              ]}
-            >
-              Instructor
-            </ThemedText>
+      {/* Header: on web only UserMenu (sidebar has brand); on native Logo + Instructor + UserMenu */}
+      <View style={[styles.topBar, isWeb && styles.topBarWeb]}>
+        {!isWeb && (
+          <View style={styles.headerContent}>
+            <View style={styles.headerLeft}>
+              <Logo variant="small" style={styles.logo} />
+              <ThemedText
+                style={[
+                  Typography.display,
+                  {
+                    color: colors.text,
+                    fontSize: 28,
+                    lineHeight: 36,
+                    marginLeft: Spacing.sm,
+                  },
+                ]}
+              >
+                Instructor
+              </ThemedText>
+            </View>
           </View>
-        </View>
+        )}
+        {isWeb && (
+          <ThemedText style={[Typography.h2, { color: colors.text }]}>
+            Dashboard
+          </ThemedText>
+        )}
         <UserMenu />
       </View>
       
       <ScrollView
         style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, isWeb && styles.scrollContentWeb]}
         showsVerticalScrollIndicator={false}
       >
+        <View style={[isWeb && styles.contentWrapWeb]}>
         {/* Welcome Header */}
         <Animated.View entering={FadeInDown.duration(600)} style={styles.header}>
           <View style={styles.headerTop}>
@@ -242,6 +252,7 @@ export default function TutorDashboard() {
         
         {/* Bottom spacing */}
         <View style={{ height: Spacing.xxl }} />
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -259,6 +270,11 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.md,
     paddingBottom: Spacing.sm,
   },
+  topBarWeb: {
+    paddingHorizontal: Spacing.xl,
+    paddingTop: Spacing.lg,
+    paddingBottom: Spacing.md,
+  },
   headerContent: {
     flex: 1,
   },
@@ -275,6 +291,16 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: Spacing.md,
     paddingTop: Spacing.lg,
+  },
+  scrollContentWeb: {
+    paddingHorizontal: Spacing.xl,
+    paddingTop: Spacing.lg,
+  },
+  contentWrapWeb: {
+    maxWidth: Layout.dashboardMaxWidth,
+    width: '100%',
+    alignSelf: 'center',
+    ...(Platform.OS === 'web' ? { paddingBottom: Spacing.xxl } : {}),
   },
   header: {
     marginBottom: Spacing.xl,

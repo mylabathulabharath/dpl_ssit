@@ -34,6 +34,9 @@ const MAPPING = {
   'arrow.up.left.and.arrow.down.right': 'fullscreen',
   'star.fill': 'star',
   'heart.fill': 'favorite',
+  'person.circle': 'person',
+  'pencil': 'edit',
+  'plus.circle.fill': 'add-circle',
 } as IconMapping;
 
 /**

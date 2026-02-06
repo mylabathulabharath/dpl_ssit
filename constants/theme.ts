@@ -246,6 +246,12 @@ export const Shadows = {
   },
 };
 
+// Web-friendly layout (max widths for tutor/admin panels)
+export const Layout = {
+  contentMaxWidth: 900,
+  dashboardMaxWidth: 1100,
+};
+
 export const Fonts = Platform.select({
   ios: {
     sans: 'system-ui',

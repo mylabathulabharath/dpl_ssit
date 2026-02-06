@@ -1,28 +1,28 @@
-import React, { useState } from 'react';
-import {
-  View,
-  StyleSheet,
-  TextInput,
-  ScrollView,
-  TouchableOpacity,
-  KeyboardAvoidingView,
-  Platform,
-  Image,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
-import { Colors, Typography, Spacing, Radius, Glows } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 import { ThemedText } from '@/components/themed-text';
+import { VideoUpload } from '@/components/tutor/video-upload';
 import { Button } from '@/components/ui/button';
 import { IconSymbol } from '@/components/ui/icon-symbol';
+import { Colors, Glows, Layout, Radius, Spacing, Typography } from '@/constants/theme';
 import { useAuth } from '@/contexts/auth-context';
+import { useColorScheme } from '@/hooks/use-color-scheme';
+import { getBranchesByUniversity, getUniversities } from '@/services/admin-service';
 import { createCourse } from '@/services/course-service';
+import { Branch, University } from '@/types/admin';
 import { CourseFormData } from '@/types/course';
-import { getUniversities, getCollegesByUniversity, getBranchesByUniversity } from '@/services/admin-service';
-import { University, College, Branch } from '@/types/admin';
+import { useRouter } from 'expo-router';
+import React, { useEffect, useState } from 'react';
+import {
+    Image,
+    KeyboardAvoidingView,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    TextInput,
+    TouchableOpacity,
+    View,
+} from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
-import { useEffect } from 'react';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 type Step = 'basics' | 'structure';
 
@@ -238,6 +238,8 @@ export default function CreateCourseScreen() {
     }
   };
   
+  const isWeb = Platform.OS === 'web';
+
   return (
     <SafeAreaView
       style={[styles.container, { backgroundColor: colors.background }]}
@@ -248,7 +250,7 @@ export default function CreateCourseScreen() {
         style={styles.keyboardView}
       >
         {/* Header */}
-        <View style={styles.header}>
+        <View style={[styles.header, isWeb && styles.headerWeb]}>
           <TouchableOpacity
             onPress={() => step === 'basics' ? router.back() : setStep('basics')}
             style={styles.backButton}
@@ -304,10 +306,11 @@ export default function CreateCourseScreen() {
         
         <ScrollView
           style={styles.scrollView}
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[styles.scrollContent, isWeb && styles.scrollContentWeb]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
+          <View style={isWeb ? styles.contentWrapWeb : undefined}>
           {step === 'basics' ? (
             <Animated.View entering={FadeInDown.duration(400)}>
               {/* Course Title */}
@@ -949,7 +952,7 @@ export default function CreateCourseScreen() {
                           },
                         ]}
                       >
-                        Video URL (Optional)
+                        Video Upload (Optional)
                       </ThemedText>
                       <TouchableOpacity
                         onPress={() => useDemoVideo(index)}
@@ -968,23 +971,13 @@ export default function CreateCourseScreen() {
                         </ThemedText>
                       </TouchableOpacity>
                     </View>
-                    <TextInput
-                      style={[
-                        styles.input,
-                        {
-                          backgroundColor: colors.background,
-                          color: colors.text,
-                          borderColor: colors.border,
-                        },
-                      ]}
-                      placeholder="Enter video URL or use demo video"
-                      placeholderTextColor={colors.textTertiary}
+                    <VideoUpload
                       value={topic.videoUrl}
-                      onChangeText={(text) => updateTopic(index, 'videoUrl', text)}
-                      autoCapitalize="none"
-                      keyboardType="url"
+                      onChange={(url) => updateTopic(index, 'videoUrl', url)}
+                      disabled={loading}
+                      title={topic.title}
                     />
-                    {topic.videoUrl && (
+                    {!topic.videoUrl && (
                       <ThemedText
                         style={[
                           Typography.caption,
@@ -995,7 +988,7 @@ export default function CreateCourseScreen() {
                           },
                         ]}
                       >
-                        Leave empty to auto-assign a demo video
+                        Upload a video or use demo video. Leave empty to auto-assign a demo video.
                       </ThemedText>
                     )}
                   </View>
@@ -1024,6 +1017,7 @@ export default function CreateCourseScreen() {
           )}
           
           <View style={{ height: Spacing.xxl }} />
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -1044,6 +1038,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     paddingTop: Spacing.md,
     paddingBottom: Spacing.sm,
+  },
+  headerWeb: {
+    paddingHorizontal: Spacing.xl,
+    paddingTop: Spacing.lg,
   },
   backButton: {
     width: 40,
@@ -1082,6 +1080,14 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: Spacing.lg,
+  },
+  scrollContentWeb: {
+    padding: Spacing.xl,
+  },
+  contentWrapWeb: {
+    maxWidth: Layout.contentMaxWidth,
+    width: '100%',
+    alignSelf: 'center',
   },
   inputGroup: {
     marginBottom: Spacing.lg,
